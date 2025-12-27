@@ -1,0 +1,499 @@
+{
+    "info": {
+        "name": "Kafka Image Consumer API Tests",
+        "description": "Тесты для Kafka consumer сервиса обработки AI-команд на изображениях",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8080",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "Health Checks",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response has correct structure', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('status');",
+                                    "    pm.expect(jsonData).to.have.property('uptime');",
+                                    "    pm.expect(jsonData).to.have.property('kafka_connected');",
+                                    "    pm.expect(jsonData).to.have.property('messages_processed');",
+                                    "});",
+                                    "",
+                                    "pm.test('Status is healthy or degraded', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(['healthy', 'degraded']).to.include(jsonData.status);",
+                                    "});",
+                                    "",
+                                    "pm.test('Messages count is a number', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.messages_processed).to.be.a('number');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/health",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "health"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Readiness Check",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 200 or 503', function () {",
+                                    "    pm.expect([200, 503]).to.include(pm.response.code);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response has status field', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('status');",
+                                    "});",
+                                    "",
+                                    "pm.test('Ready status is correct', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    if (pm.response.code === 200) {",
+                                    "        pm.expect(jsonData.status).to.eql('ready');",
+                                    "    } else {",
+                                    "        pm.expect(jsonData.status).to.eql('not_ready');",
+                                    "    }",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/ready",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "ready"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Statistics",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response has statistics fields', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('uptime_seconds');",
+                                    "    pm.expect(jsonData).to.have.property('messages_processed');",
+                                    "    pm.expect(jsonData).to.have.property('kafka_connected');",
+                                    "});",
+                                    "",
+                                    "pm.test('Uptime is a positive number', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.uptime_seconds).to.be.a('number');",
+                                    "    pm.expect(jsonData.uptime_seconds).to.be.above(0);",
+                                    "});",
+                                    "",
+                                    "pm.test('Kafka connected is boolean', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.kafka_connected).to.be.a('boolean');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/stats",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "stats"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Functional Tests",
+            "item": [
+                {
+                    "name": "Send Resize Command",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 201 Created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response indicates success', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.success).to.be.true;",
+                                    "    pm.expect(jsonData.message).to.eql('Message sent successfully');",
+                                    "});",
+                                    "",
+                                    "pm.test('Response contains message ID', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.id).to.eql('test-resize-001');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"id\": \"test-resize-001\",\n  \"command\": \"resize\",\n  \"image_url\": \"https://example.com/test-image.jpg\",\n  \"parameters\": {\n    \"width\": 800,\n    \"height\": 600\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Send Filter Command",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 201 Created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response indicates success', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.success).to.be.true;",
+                                    "});",
+                                    "",
+                                    "pm.test('Response contains correct ID', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.id).to.eql('test-filter-001');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"id\": \"test-filter-001\",\n  \"command\": \"filter\",\n  \"image_url\": \"https://example.com/photo.png\",\n  \"parameters\": {\n    \"filter_type\": \"blur\",\n    \"intensity\": 0.5\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Send Analyze Command",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 201 Created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test('AI analyze command sent successfully', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.success).to.be.true;",
+                                    "    pm.expect(jsonData.id).to.eql('test-analyze-001');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"id\": \"test-analyze-001\",\n  \"command\": \"analyze\",\n  \"image_url\": \"https://example.com/ai-image.jpg\",\n  \"parameters\": {\n    \"model\": \"gpt-4-vision\",\n    \"prompt\": \"Describe this image\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Send Invalid Command - Missing Fields",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response indicates failure', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.success).to.be.false;",
+                                    "});",
+                                    "",
+                                    "pm.test('Error message mentions missing fields', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.message).to.include('Missing required fields');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"id\": \"incomplete-001\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Send Invalid JSON",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response indicates JSON parse error', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.success).to.be.false;",
+                                    "    pm.expect(jsonData.message).to.include('Invalid JSON');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{ invalid json }"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Error Handling",
+            "item": [
+                {
+                    "name": "Health - Wrong Method",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 405 Method Not Allowed', function () {",
+                                    "    pm.response.to.have.status(405);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/health",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "health"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Send - Wrong Method",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 405 Method Not Allowed', function () {",
+                                    "    pm.response.to.have.status(405);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Non-existent Endpoint",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 404', function () {",
+                                    "    pm.response.to.have.status(404);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/nonexistent",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "nonexistent"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ]
+}
