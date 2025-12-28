@@ -40,9 +40,9 @@ services:
     entrypoint: ['/bin/sh', '-c']
     command: |
       "
-      echo 'Создание топика image-commands...'
+      echo 'Creating topic image-commands...'
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic image-commands --partitions 3 --replication-factor 1
-      echo 'Топик image-commands создан!'
+      echo 'Topic image-commands created!'
       "
 
   consumer:
@@ -54,10 +54,50 @@ services:
       kafka:
         condition: service_healthy
     environment:
+      # Kafka settings
       KAFKA_BROKERS: kafka:29092
       KAFKA_TOPIC: image-commands
       KAFKA_GROUP_ID: image-processor-group
+      # Processor settings
+      PROCESSOR_MODE: real  # "stub" or "real"
+      OUTPUT_DIR: /data/processed-images
+      # Message format
+      MESSAGE_FORMAT: json  # "json" or "protobuf"
+      # HTTP settings
       HTTP_PORT: "8080"
+      # Logging
+      LOG_LEVEL: info
     ports:
       - "8080:8080"
+    volumes:
+      - processed_images:/data/processed-images
     restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9093:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    depends_on:
+      - consumer
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  processed_images:
+  grafana_data:

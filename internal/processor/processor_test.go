@@ -1,25 +1,29 @@
 package processor
 
 import (
+	"context"
 	"testing"
 
-	"kafka-consumer/internal/models"
+	pb "kafka-consumer/proto"
 )
 
 func TestStubProcessor_Process_Success(t *testing.T) {
 	processor := NewStubProcessor()
+	ctx := context.Background()
 
-	cmd := models.ImageCommand{
-		ID:       "test-123",
-		Command:  models.CommandResize,
-		ImageURL: "https://example.com/image.jpg",
-		Parameters: map[string]interface{}{
-			"width":  100,
-			"height": 100,
+	cmd := &pb.ImageCommand{
+		Id:       "test-123",
+		Command:  pb.CommandType_COMMAND_TYPE_RESIZE,
+		ImageUrl: "https://example.com/image.jpg",
+		Parameters: &pb.ImageCommand_Resize{
+			Resize: &pb.ResizeParameters{
+				Width:  100,
+				Height: 100,
+			},
 		},
 	}
 
-	err := processor.Process(cmd)
+	err := processor.Process(ctx, cmd)
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
 	}
@@ -32,21 +36,22 @@ func TestStubProcessor_Process_Success(t *testing.T) {
 	if lastCmd == nil {
 		t.Fatal("Expected last command to be not nil")
 	}
-	if lastCmd.ID != cmd.ID {
-		t.Errorf("Expected ID %s, got: %s", cmd.ID, lastCmd.ID)
+	if lastCmd.Id != cmd.Id {
+		t.Errorf("Expected ID %s, got: %s", cmd.Id, lastCmd.Id)
 	}
 }
 
 func TestStubProcessor_Process_EmptyID(t *testing.T) {
 	processor := NewStubProcessor()
+	ctx := context.Background()
 
-	cmd := models.ImageCommand{
-		ID:       "",
-		Command:  models.CommandResize,
-		ImageURL: "https://example.com/image.jpg",
+	cmd := &pb.ImageCommand{
+		Id:       "",
+		Command:  pb.CommandType_COMMAND_TYPE_RESIZE,
+		ImageUrl: "https://example.com/image.jpg",
 	}
 
-	err := processor.Process(cmd)
+	err := processor.Process(ctx, cmd)
 	if err == nil {
 		t.Error("Expected error for empty ID, got nil")
 	}
@@ -54,37 +59,41 @@ func TestStubProcessor_Process_EmptyID(t *testing.T) {
 
 func TestStubProcessor_Process_EmptyImageURL(t *testing.T) {
 	processor := NewStubProcessor()
+	ctx := context.Background()
 
-	cmd := models.ImageCommand{
-		ID:       "test-123",
-		Command:  models.CommandResize,
-		ImageURL: "",
+	cmd := &pb.ImageCommand{
+		Id:       "test-123",
+		Command:  pb.CommandType_COMMAND_TYPE_RESIZE,
+		ImageUrl: "",
 	}
 
-	err := processor.Process(cmd)
+	err := processor.Process(ctx, cmd)
 	if err == nil {
 		t.Error("Expected error for empty ImageURL, got nil")
 	}
 }
 
 func TestStubProcessor_Process_AllCommandTypes(t *testing.T) {
-	commands := []models.CommandType{
-		models.CommandResize,
-		models.CommandFilter,
-		models.CommandTransform,
-		models.CommandAnalyze,
+	commands := []pb.CommandType{
+		pb.CommandType_COMMAND_TYPE_RESIZE,
+		pb.CommandType_COMMAND_TYPE_FILTER,
+		pb.CommandType_COMMAND_TYPE_TRANSFORM,
+		pb.CommandType_COMMAND_TYPE_ANALYZE,
+		pb.CommandType_COMMAND_TYPE_CROP,
+		pb.CommandType_COMMAND_TYPE_REMOVE_BACKGROUND,
 	}
 
 	for _, cmdType := range commands {
-		t.Run(string(cmdType), func(t *testing.T) {
+		t.Run(cmdType.String(), func(t *testing.T) {
 			processor := NewStubProcessor()
-			cmd := models.ImageCommand{
-				ID:       "test-" + string(cmdType),
+			ctx := context.Background()
+			cmd := &pb.ImageCommand{
+				Id:       "test-" + cmdType.String(),
 				Command:  cmdType,
-				ImageURL: "https://example.com/image.jpg",
+				ImageUrl: "https://example.com/image.jpg",
 			}
 
-			err := processor.Process(cmd)
+			err := processor.Process(ctx, cmd)
 			if err != nil {
 				t.Errorf("Expected no error for command %s, got: %v", cmdType, err)
 			}
