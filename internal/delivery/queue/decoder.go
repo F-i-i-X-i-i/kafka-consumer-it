@@ -72,7 +72,6 @@ func (d *Decoder) decodeJSON(data []byte) (*pb.ImageCommand, error) {
 		ImageUrl: jsonCmd.ImageURL,
 	}
 
-	// Map command type
 	switch jsonCmd.Command {
 	case "resize":
 		cmd.Command = pb.CommandType_COMMAND_TYPE_RESIZE
@@ -100,12 +99,62 @@ func (d *Decoder) decodeJSON(data []byte) (*pb.ImageCommand, error) {
 		}
 	case "transform":
 		cmd.Command = pb.CommandType_COMMAND_TYPE_TRANSFORM
+		if jsonCmd.Parameters != nil {
+			params := &pb.TransformParameters{}
+			if rd, ok := jsonCmd.Parameters["rotation_degrees"].(float64); ok {
+				params.RotationDegrees = rd
+			}
+			if fh, ok := jsonCmd.Parameters["flip_horizontal"].(bool); ok {
+				params.FlipHorizontal = fh
+			}
+			if fv, ok := jsonCmd.Parameters["flip_vertical"].(bool); ok {
+				params.FlipVertical = fv
+			}
+			cmd.Parameters = &pb.ImageCommand_Transform{Transform: params}
+		}
 	case "analyze":
 		cmd.Command = pb.CommandType_COMMAND_TYPE_ANALYZE
+		if jsonCmd.Parameters != nil {
+			params := &pb.AnalyzeParameters{}
+			if models, ok := jsonCmd.Parameters["models"].([]interface{}); ok {
+				for _, m := range models {
+					if model, ok := m.(string); ok {
+						params.Models = append(params.Models, model)
+					}
+				}
+			}
+			cmd.Parameters = &pb.ImageCommand_Analyze{Analyze: params}
+		}
 	case "crop":
 		cmd.Command = pb.CommandType_COMMAND_TYPE_CROP
+		if jsonCmd.Parameters != nil {
+			params := &pb.CropParameters{}
+			if x, ok := jsonCmd.Parameters["x"].(float64); ok {
+				params.X = int32(x)
+			}
+			if y, ok := jsonCmd.Parameters["y"].(float64); ok {
+				params.Y = int32(y)
+			}
+			if w, ok := jsonCmd.Parameters["width"].(float64); ok {
+				params.Width = int32(w)
+			}
+			if h, ok := jsonCmd.Parameters["height"].(float64); ok {
+				params.Height = int32(h)
+			}
+			cmd.Parameters = &pb.ImageCommand_Crop{Crop: params}
+		}
 	case "remove_background":
 		cmd.Command = pb.CommandType_COMMAND_TYPE_REMOVE_BACKGROUND
+		if jsonCmd.Parameters != nil {
+			params := &pb.RemoveBackgroundParameters{}
+			if of, ok := jsonCmd.Parameters["output_format"].(string); ok {
+				params.OutputFormat = of
+			}
+			if hq, ok := jsonCmd.Parameters["high_quality"].(bool); ok {
+				params.HighQuality = hq
+			}
+			cmd.Parameters = &pb.ImageCommand_RemoveBackground{RemoveBackground: params}
+		}
 	default:
 		cmd.Command = pb.CommandType_COMMAND_TYPE_UNSPECIFIED
 	}

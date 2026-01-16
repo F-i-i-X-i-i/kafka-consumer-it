@@ -347,7 +347,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"id\": \"test-crop-001\",\n  \"command\": \"crop\",\n  \"image_url\": \"https://example.com/crop-me.jpg\",\n  \"parameters\": {\n    \"x\": 100,\n    \"y\": 100,\n    \"width\": 500,\n    \"height\": 400\n  }\n}"
+                            "raw": "{\n  \"id\": \"test-crop-001\",\n  \"command\": \"crop\",\n  \"image_url\": \"https://httpbin.org/image/png\",\n  \"parameters\": {\n    \"x\": 100,\n    \"y\": 100,\n    \"width\": 500,\n    \"height\": 400\n  }\n}"
                         },
                         "url": {
                             "raw": "{{baseUrl}}/send",

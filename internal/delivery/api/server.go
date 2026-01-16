@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync/atomic"
 	"time"
+	"log"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -115,6 +116,9 @@ func (s *Server) SendHandler(w http.ResponseWriter, r *http.Request) {
 		customerrors.WriteError(w, customerrors.ErrBadRequest.WithDetails("Invalid JSON: "+err.Error()))
 		return
 	}
+	log.Printf("📥 API Received: ID=%s, Command=%s, URL=%s, HasParams=%v, Params=%+v",
+		req.ID, req.Command, req.ImageURL, 
+		req.Parameters != nil, req.Parameters)
 
 	// Validate request using validator
 	if err := s.validate.Struct(req); err != nil {
@@ -156,16 +160,69 @@ func (s *Server) SendHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	case "transform":
 		cmd.Command = pb.CommandType_COMMAND_TYPE_TRANSFORM
+		if req.Parameters != nil {
+			params := &pb.TransformParameters{}
+			if rd, ok := req.Parameters["rotation_degrees"].(float64); ok {
+				params.RotationDegrees = rd
+			}
+			if fh, ok := req.Parameters["flip_horizontal"].(bool); ok {
+				params.FlipHorizontal = fh
+			}
+			if fv, ok := req.Parameters["flip_vertical"].(bool); ok {
+				params.FlipVertical = fv
+			}
+			cmd.Parameters = &pb.ImageCommand_Transform{Transform: params}
+		}
 	case "analyze":
 		cmd.Command = pb.CommandType_COMMAND_TYPE_ANALYZE
+		if req.Parameters != nil {
+			params := &pb.AnalyzeParameters{}
+			if models, ok := req.Parameters["models"].([]interface{}); ok {
+				for _, m := range models {
+					if model, ok := m.(string); ok {
+						params.Models = append(params.Models, model)
+					}
+				}
+			}
+			cmd.Parameters = &pb.ImageCommand_Analyze{Analyze: params}
+		}
 	case "crop":
 		cmd.Command = pb.CommandType_COMMAND_TYPE_CROP
+		if req.Parameters != nil {
+			params := &pb.CropParameters{}
+			if x, ok := req.Parameters["x"].(float64); ok {
+				params.X = int32(x)
+			}
+			if y, ok := req.Parameters["y"].(float64); ok {
+				params.Y = int32(y)
+			}
+			if w, ok := req.Parameters["width"].(float64); ok {
+				params.Width = int32(w)
+			}
+			if h, ok := req.Parameters["height"].(float64); ok {
+				params.Height = int32(h)
+			}
+			cmd.Parameters = &pb.ImageCommand_Crop{Crop: params}
+		}
 	case "remove_background":
 		cmd.Command = pb.CommandType_COMMAND_TYPE_REMOVE_BACKGROUND
+		if req.Parameters != nil {
+			params := &pb.RemoveBackgroundParameters{}
+			if of, ok := req.Parameters["output_format"].(string); ok {
+				params.OutputFormat = of
+			}
+			if hq, ok := req.Parameters["high_quality"].(bool); ok {
+				params.HighQuality = hq
+			}
+			cmd.Parameters = &pb.ImageCommand_RemoveBackground{RemoveBackground: params}
+		}
 	default:
 		customerrors.WriteError(w, customerrors.ErrInvalidCommand.WithDetails("Unknown command: "+req.Command))
 		return
 	}
+
+	log.Printf("📤 Sending to Kafka: ID=%s, Command=%v, HasProtoParams=%v",
+		cmd.Id, cmd.Command, cmd.Parameters != nil)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
