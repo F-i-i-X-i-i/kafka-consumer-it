@@ -182,4 +182,6 @@ func (s *Server) SendHandler(w http.ResponseWriter, r *http.Request) {
 		Message: "Message sent successfully",
 		ID:      req.ID,
 	})
+	s.IncrementMessagesCount()
+
 }

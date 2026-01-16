@@ -88,7 +88,8 @@ func (h *Handler) processNextMessage(ctx context.Context) error {
 
 	// Process the command - the processor handles its own metrics
 	if err := h.processor.ProcessAny(ctx, cmd); err != nil {
-		log.Error("Command processing error", "error", err)
+		log.Error("Processing failed - WILL RETRY", "error", err, "command", cmd)
+		return err
 	}
 
 	// Commit the message
