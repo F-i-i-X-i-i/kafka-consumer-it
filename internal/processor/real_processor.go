@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"kafka-consumer/internal/config"
 	"kafka-consumer/internal/usecase"
 	pb "kafka-consumer/proto"
 )
@@ -14,10 +15,15 @@ type RealProcessor struct {
 }
 
 // NewRealProcessor creates a new real processor wrapping the image processor
-func NewRealProcessor(outputDir string) *RealProcessor {
-	return &RealProcessor{
-		imageProcessor: usecase.NewRealImageProcessor(outputDir),
+func NewRealProcessor(cfg *config.Config) (*RealProcessor, error) {
+	imageProcessor, err := usecase.NewRealImageProcessor(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create image processor: %w", err)
 	}
+	
+	return &RealProcessor{
+		imageProcessor: imageProcessor,
+	}, nil
 }
 
 // ProcessAny handles interface{} type from decoder

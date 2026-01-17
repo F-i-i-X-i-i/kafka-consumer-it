@@ -53,9 +53,14 @@ func (a *Application) Init() error {
 
 	// Create processor based on configuration
 	var proc processor.Processor
+	var err error
 	if a.cfg.ProcessorMode == "real" {
 		logger.Info("Using real image processor", "output_dir", a.cfg.OutputDir)
-		proc = processor.NewRealProcessor(a.cfg.OutputDir)
+		proc, err = processor.NewRealProcessor(a.cfg)
+		if err != nil {
+			logger.Error("Failed to create processor", "error", err)
+			return err
+		}
 	} else {
 		logger.Info("Using stub processor")
 		proc = processor.NewStubProcessor()

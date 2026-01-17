@@ -1,19 +1,20 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"image"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/disintegration/imaging"
 
+	"kafka-consumer/internal/config"
 	"kafka-consumer/internal/pkg/logger"
 	"kafka-consumer/internal/pkg/metrics"
+	"kafka-consumer/internal/repository/storage"
 	pb "kafka-consumer/proto"
 )
 
@@ -26,23 +27,38 @@ type ImageProcessor interface {
 type ProcessingResult struct {
 	CommandID        string
 	Success          bool
-	OutputPath       string
+	OutputUrl        string
 	ErrorMessage     string
 	ProcessingTimeMs int64
 }
 
-// RealImageProcessor implements actual image processing
+// RealImageProcessor implements actual image processing with S3 storage
 type RealImageProcessor struct {
-	outputDir string
+	storage storage.Storage
 }
 
-// NewRealImageProcessor creates a new real image processor
-func NewRealImageProcessor(outputDir string) *RealImageProcessor {
-	// Create output directory if it doesn't exist
-	os.MkdirAll(outputDir, 0755)
-	return &RealImageProcessor{
-		outputDir: outputDir,
+// NewRealImageProcessor creates a new real image processor with S3 storage
+func NewRealImageProcessor(cfg *config.Config) (*RealImageProcessor, error) {
+	s3Storage, err := storage.NewS3Storage(
+		cfg.S3Endpoint,
+		cfg.S3Region,
+		cfg.S3AccessKey,
+		cfg.S3SecretKey,
+		cfg.S3Bucket,
+		cfg.S3Prefix,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create S3 storage: %w", err)
 	}
+
+	logger.Info("S3 storage initialized",
+		"endpoint", cfg.S3Endpoint,
+		"bucket", cfg.S3Bucket,
+		"prefix", cfg.S3Prefix)
+
+	return &RealImageProcessor{
+		storage: s3Storage,
+	}, nil
 }
 
 // Process processes an image command with real operations
@@ -65,14 +81,18 @@ func (p *RealImageProcessor) Process(ctx context.Context, cmd *pb.ImageCommand) 
 	// Validate command
 	if cmd.Id == "" {
 		metrics.RecordMessageProcessed(commandType, "error")
-		return nil, fmt.Errorf("command ID is required")
+		result.ErrorMessage = "command ID is required"
+		result.Success = false
+		return result, fmt.Errorf("command ID is required")
 	}
 	if cmd.ImageUrl == "" {
 		metrics.RecordMessageProcessed(commandType, "error")
-		return nil, fmt.Errorf("image URL is required")
+		result.ErrorMessage = "image URL is required"
+		result.Success = false
+		return result, fmt.Errorf("image URL is required")
 	}
 
-	// Download image
+	// Download image from URL
 	img, format, err := p.downloadImage(ctx, cmd.ImageUrl)
 	if err != nil {
 		log.Error("Failed to download image", "error", err)
@@ -82,7 +102,10 @@ func (p *RealImageProcessor) Process(ctx context.Context, cmd *pb.ImageCommand) 
 		return result, err
 	}
 
-	log.Info("Image downloaded", "format", format, "width", img.Bounds().Dx(), "height", img.Bounds().Dy())
+	log.Info("Image downloaded", 
+		"format", format, 
+		"width", img.Bounds().Dx(), 
+		"height", img.Bounds().Dy())
 
 	// Process based on command type
 	var processedImg image.Image
@@ -96,11 +119,13 @@ func (p *RealImageProcessor) Process(ctx context.Context, cmd *pb.ImageCommand) 
 	case pb.CommandType_COMMAND_TYPE_CROP:
 		processedImg, err = p.processCrop(img, cmd.GetCrop())
 	case pb.CommandType_COMMAND_TYPE_ANALYZE:
-		// For analyze, we just return image info
+		// For analyze, we just return image info without saving
 		result.Success = true
-		result.OutputPath = ""
+		result.OutputUrl = ""
 		result.ProcessingTimeMs = time.Since(start).Milliseconds()
-		log.Info("Image analyzed", "width", img.Bounds().Dx(), "height", img.Bounds().Dy())
+		log.Info("Image analyzed", 
+			"width", img.Bounds().Dx(), 
+			"height", img.Bounds().Dy())
 		metrics.RecordMessageProcessed(commandType, "success")
 		return result, nil
 	case pb.CommandType_COMMAND_TYPE_REMOVE_BACKGROUND:
@@ -119,27 +144,40 @@ func (p *RealImageProcessor) Process(ctx context.Context, cmd *pb.ImageCommand) 
 		return result, err
 	}
 
-	// Save processed image
-	outputPath := filepath.Join(p.outputDir, fmt.Sprintf("%s_processed.png", cmd.Id))
-	if err := imaging.Save(processedImg, outputPath); err != nil {
-		log.Error("Failed to save processed image", "error", err)
+	// Encode processed image to PNG bytes
+	var buf bytes.Buffer
+	if err := imaging.Encode(&buf, processedImg, imaging.PNG); err != nil {
+		log.Error("Failed to encode processed image", "error", err)
 		result.Success = false
-		result.ErrorMessage = fmt.Sprintf("save failed: %v", err)
+		result.ErrorMessage = fmt.Sprintf("encode failed: %v", err)
+		metrics.RecordMessageProcessed(commandType, "error")
+		return result, err
+	}
+
+	// Upload to S3 storage
+	s3Key := fmt.Sprintf("%s.png", cmd.Id)
+	outputUrl, err := p.storage.Upload(ctx, s3Key, bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		log.Error("Failed to upload to S3", "error", err)
+		result.Success = false
+		result.ErrorMessage = fmt.Sprintf("upload failed: %v", err)
 		metrics.RecordMessageProcessed(commandType, "error")
 		return result, err
 	}
 
 	duration := time.Since(start)
 	result.Success = true
-	result.OutputPath = outputPath
+	result.OutputUrl = outputUrl
 	result.ProcessingTimeMs = duration.Milliseconds()
 
 	metrics.ObserveMessageProcessingDuration(commandType, duration.Seconds())
 	metrics.RecordMessageProcessed(commandType, "success")
 
 	log.Info("Image processed successfully",
-		"output_path", outputPath,
-		"duration_ms", result.ProcessingTimeMs)
+		"output_url", outputUrl,
+		"duration_ms", result.ProcessingTimeMs,
+		"image_size", buf.Len(),
+		"s3_key", s3Key)
 
 	return result, nil
 }
@@ -150,6 +188,9 @@ func (p *RealImageProcessor) downloadImage(ctx context.Context, url string) (ima
 	if err != nil {
 		return nil, "", err
 	}
+
+	// Set user-agent to avoid being blocked
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Kafka Image Processor)")
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
@@ -165,6 +206,7 @@ func (p *RealImageProcessor) downloadImage(ctx context.Context, url string) (ima
 	// Limit read to 50MB
 	limitedReader := io.LimitReader(resp.Body, 50*1024*1024)
 
+	// Decode image
 	img, format, err := image.Decode(limitedReader)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to decode image: %w", err)
@@ -228,13 +270,16 @@ func (p *RealImageProcessor) processFilter(img image.Image, params *pb.FilterPar
 		return imaging.Invert(img), nil
 	case "brightness":
 		// intensity from -100 to 100
-		return imaging.AdjustBrightness(img, intensity*100-50), nil
+		adjustment := intensity*200 - 100 // Convert 0.0-1.0 to -100 to 100
+		return imaging.AdjustBrightness(img, adjustment), nil
 	case "contrast":
 		// intensity from -100 to 100
-		return imaging.AdjustContrast(img, intensity*100-50), nil
+		adjustment := intensity*200 - 100
+		return imaging.AdjustContrast(img, adjustment), nil
 	case "saturation":
 		// intensity from -100 to 100
-		return imaging.AdjustSaturation(img, intensity*100-50), nil
+		adjustment := intensity*200 - 100
+		return imaging.AdjustSaturation(img, adjustment), nil
 	default:
 		return nil, fmt.Errorf("unknown filter type: %s", params.FilterType)
 	}

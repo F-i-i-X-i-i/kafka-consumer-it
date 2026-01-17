@@ -26,6 +26,14 @@ type Config struct {
 
 	// Logging
 	LogLevel string `mapstructure:"log_level"`
+
+	// s3
+	S3Endpoint  string `mapstructure:"s3_endpoint"`
+	S3Region    string `mapstructure:"s3_region"`
+	S3AccessKey string `mapstructure:"s3_access_key"`
+	S3SecretKey string `mapstructure:"s3_secret_key"`
+	S3Bucket    string `mapstructure:"s3_bucket"`
+	S3Prefix    string `mapstructure:"s3_prefix"`
 }
 
 // LoadConfig loads configuration from environment variables and config files
@@ -41,7 +49,13 @@ func LoadConfig() *Config {
 	v.SetDefault("message_format", "json")
 	v.SetDefault("http_port", "8080")
 	v.SetDefault("log_level", "info")
-
+	//s3
+	v.SetDefault("s3_endpoint", "http://localhost:9000")
+	v.SetDefault("s3_region", "us-east-1")
+	v.SetDefault("s3_access_key", "minioadmin")
+	v.SetDefault("s3_secret_key", "minioadmin")
+	v.SetDefault("s3_bucket", "images")
+	v.SetDefault("s3_prefix", "processed")
 	// Read from environment variables
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -71,6 +85,13 @@ func LoadConfig() *Config {
 	cfg.HTTPPort = v.GetString("http_port")
 	cfg.LogLevel = v.GetString("log_level")
 
+	//s3
+	cfg.S3Endpoint = v.GetString("s3_endpoint")
+	cfg.S3Region = v.GetString("s3_region")
+	cfg.S3AccessKey = v.GetString("s3_access_key")
+	cfg.S3SecretKey = v.GetString("s3_secret_key")
+	cfg.S3Bucket = v.GetString("s3_bucket")
+	cfg.S3Prefix = v.GetString("s3_prefix")
 	return cfg
 }
 
