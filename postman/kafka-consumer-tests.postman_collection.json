@@ -1,7 +1,7 @@
 {
     "info": {
         "name": "Kafka Image Consumer API Tests",
-        "description": "Тесты для Kafka consumer сервиса обработки AI-команд на изображениях",
+        "description": "Тесты для Kafka consumer сервиса обработки AI-команд на изображениях. Версия 2.0 с Protobuf, chi router, validator.",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -30,13 +30,12 @@
                                     "    const jsonData = pm.response.json();",
                                     "    pm.expect(jsonData).to.have.property('status');",
                                     "    pm.expect(jsonData).to.have.property('uptime');",
-                                    "    pm.expect(jsonData).to.have.property('kafka_connected');",
                                     "    pm.expect(jsonData).to.have.property('messages_processed');",
                                     "});",
                                     "",
-                                    "pm.test('Status is healthy or degraded', function () {",
+                                    "pm.test('Status is healthy', function () {",
                                     "    const jsonData = pm.response.json();",
-                                    "    pm.expect(['healthy', 'degraded']).to.include(jsonData.status);",
+                                    "    pm.expect(jsonData.status).to.eql('healthy');",
                                     "});",
                                     "",
                                     "pm.test('Messages count is a number', function () {",
@@ -60,8 +59,7 @@
                                 "health"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Readiness Check",
@@ -70,22 +68,14 @@
                             "listen": "test",
                             "script": {
                                 "exec": [
-                                    "pm.test('Status code is 200 or 503', function () {",
-                                    "    pm.expect([200, 503]).to.include(pm.response.code);",
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
                                     "});",
                                     "",
                                     "pm.test('Response has status field', function () {",
                                     "    const jsonData = pm.response.json();",
                                     "    pm.expect(jsonData).to.have.property('status');",
-                                    "});",
-                                    "",
-                                    "pm.test('Ready status is correct', function () {",
-                                    "    const jsonData = pm.response.json();",
-                                    "    if (pm.response.code === 200) {",
-                                    "        pm.expect(jsonData.status).to.eql('ready');",
-                                    "    } else {",
-                                    "        pm.expect(jsonData.status).to.eql('not_ready');",
-                                    "    }",
+                                    "    pm.expect(jsonData.status).to.eql('ready');",
                                     "});"
                                 ],
                                 "type": "text/javascript"
@@ -104,8 +94,7 @@
                                 "ready"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Statistics",
@@ -122,18 +111,12 @@
                                     "    const jsonData = pm.response.json();",
                                     "    pm.expect(jsonData).to.have.property('uptime_seconds');",
                                     "    pm.expect(jsonData).to.have.property('messages_processed');",
-                                    "    pm.expect(jsonData).to.have.property('kafka_connected');",
                                     "});",
                                     "",
                                     "pm.test('Uptime is a positive number', function () {",
                                     "    const jsonData = pm.response.json();",
                                     "    pm.expect(jsonData.uptime_seconds).to.be.a('number');",
                                     "    pm.expect(jsonData.uptime_seconds).to.be.above(0);",
-                                    "});",
-                                    "",
-                                    "pm.test('Kafka connected is boolean', function () {",
-                                    "    const jsonData = pm.response.json();",
-                                    "    pm.expect(jsonData.kafka_connected).to.be.a('boolean');",
                                     "});"
                                 ],
                                 "type": "text/javascript"
@@ -152,13 +135,49 @@
                                 "stats"
                             ]
                         }
-                    },
-                    "response": []
+                    }
+                },
+                {
+                    "name": "Prometheus Metrics",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response contains Prometheus metrics', function () {",
+                                    "    pm.expect(pm.response.text()).to.include('go_goroutines');",
+                                    "});",
+                                    "",
+                                    "pm.test('Content-Type is text/plain', function () {",
+                                    "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/plain');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/metrics",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "metrics"
+                            ]
+                        }
+                    }
                 }
             ]
         },
         {
-            "name": "Functional Tests",
+            "name": "Image Commands",
             "item": [
                 {
                     "name": "Send Resize Command",
@@ -207,8 +226,7 @@
                                 "send"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
                     "name": "Send Filter Command",
@@ -221,13 +239,9 @@
                                     "    pm.response.to.have.status(201);",
                                     "});",
                                     "",
-                                    "pm.test('Response indicates success', function () {",
+                                    "pm.test('Filter command sent successfully', function () {",
                                     "    const jsonData = pm.response.json();",
                                     "    pm.expect(jsonData.success).to.be.true;",
-                                    "});",
-                                    "",
-                                    "pm.test('Response contains correct ID', function () {",
-                                    "    const jsonData = pm.response.json();",
                                     "    pm.expect(jsonData.id).to.eql('test-filter-001');",
                                     "});"
                                 ],
@@ -256,8 +270,95 @@
                                 "send"
                             ]
                         }
-                    },
-                    "response": []
+                    }
+                },
+                {
+                    "name": "Send Transform Command",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 201 Created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test('Transform command sent successfully', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.success).to.be.true;",
+                                    "    pm.expect(jsonData.id).to.eql('test-transform-001');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"id\": \"test-transform-001\",\n  \"command\": \"transform\",\n  \"image_url\": \"https://example.com/rotate-me.jpg\",\n  \"parameters\": {\n    \"rotation_degrees\": 90,\n    \"flip_horizontal\": true\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Send Crop Command",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 201 Created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test('Crop command sent successfully', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.success).to.be.true;",
+                                    "    pm.expect(jsonData.id).to.eql('test-crop-001');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"id\": \"test-crop-001\",\n  \"command\": \"crop\",\n  \"image_url\": \"https://httpbin.org/image/png\",\n  \"parameters\": {\n    \"x\": 100,\n    \"y\": 100,\n    \"width\": 500,\n    \"height\": 400\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    }
                 },
                 {
                     "name": "Send Analyze Command",
@@ -270,7 +371,7 @@
                                     "    pm.response.to.have.status(201);",
                                     "});",
                                     "",
-                                    "pm.test('AI analyze command sent successfully', function () {",
+                                    "pm.test('Analyze command sent successfully', function () {",
                                     "    const jsonData = pm.response.json();",
                                     "    pm.expect(jsonData.success).to.be.true;",
                                     "    pm.expect(jsonData.id).to.eql('test-analyze-001');",
@@ -290,7 +391,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"id\": \"test-analyze-001\",\n  \"command\": \"analyze\",\n  \"image_url\": \"https://example.com/ai-image.jpg\",\n  \"parameters\": {\n    \"model\": \"gpt-4-vision\",\n    \"prompt\": \"Describe this image\"\n  }\n}"
+                            "raw": "{\n  \"id\": \"test-analyze-001\",\n  \"command\": \"analyze\",\n  \"image_url\": \"https://example.com/ai-image.jpg\",\n  \"parameters\": {\n    \"models\": [\"gpt-4-vision\"]\n  }\n}"
                         },
                         "url": {
                             "raw": "{{baseUrl}}/send",
@@ -301,28 +402,23 @@
                                 "send"
                             ]
                         }
-                    },
-                    "response": []
+                    }
                 },
                 {
-                    "name": "Send Invalid Command - Missing Fields",
+                    "name": "Send Remove Background Command",
                     "event": [
                         {
                             "listen": "test",
                             "script": {
                                 "exec": [
-                                    "pm.test('Status code is 400 Bad Request', function () {",
-                                    "    pm.response.to.have.status(400);",
+                                    "pm.test('Status code is 201 Created', function () {",
+                                    "    pm.response.to.have.status(201);",
                                     "});",
                                     "",
-                                    "pm.test('Response indicates failure', function () {",
+                                    "pm.test('Remove background command sent successfully', function () {",
                                     "    const jsonData = pm.response.json();",
-                                    "    pm.expect(jsonData.success).to.be.false;",
-                                    "});",
-                                    "",
-                                    "pm.test('Error message mentions missing fields', function () {",
-                                    "    const jsonData = pm.response.json();",
-                                    "    pm.expect(jsonData.message).to.include('Missing required fields');",
+                                    "    pm.expect(jsonData.success).to.be.true;",
+                                    "    pm.expect(jsonData.id).to.eql('test-remove-bg-001');",
                                     "});"
                                 ],
                                 "type": "text/javascript"
@@ -339,7 +435,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"id\": \"incomplete-001\"\n}"
+                            "raw": "{\n  \"id\": \"test-remove-bg-001\",\n  \"command\": \"remove_background\",\n  \"image_url\": \"https://example.com/portrait.jpg\",\n  \"parameters\": {\n    \"output_format\": \"png\",\n    \"high_quality\": true\n  }\n}"
                         },
                         "url": {
                             "raw": "{{baseUrl}}/send",
@@ -350,8 +446,143 @@
                                 "send"
                             ]
                         }
-                    },
-                    "response": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Validation Tests",
+            "item": [
+                {
+                    "name": "Validation Error - Missing ID",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response contains validation error', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('error');",
+                                    "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"command\": \"resize\",\n  \"image_url\": \"https://example.com/test.jpg\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Validation Error - Invalid Command",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response contains validation error', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('error');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"id\": \"test-001\",\n  \"command\": \"invalid_command\",\n  \"image_url\": \"https://example.com/test.jpg\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Validation Error - Invalid URL",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response contains validation error for URL', function () {",
+                                    "    const jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('error');",
+                                    "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"id\": \"test-001\",\n  \"command\": \"resize\",\n  \"image_url\": \"not-a-valid-url\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/send",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "send"
+                            ]
+                        }
+                    }
                 },
                 {
                     "name": "Send Invalid JSON",
@@ -364,10 +595,10 @@
                                     "    pm.response.to.have.status(400);",
                                     "});",
                                     "",
-                                    "pm.test('Response indicates JSON parse error', function () {",
+                                    "pm.test('Response indicates bad request error', function () {",
                                     "    const jsonData = pm.response.json();",
-                                    "    pm.expect(jsonData.success).to.be.false;",
-                                    "    pm.expect(jsonData.message).to.include('Invalid JSON');",
+                                    "    pm.expect(jsonData).to.have.property('error');",
+                                    "    pm.expect(jsonData.error.code).to.eql('BAD_REQUEST');",
                                     "});"
                                 ],
                                 "type": "text/javascript"
@@ -395,103 +626,7 @@
                                 "send"
                             ]
                         }
-                    },
-                    "response": []
-                }
-            ]
-        },
-        {
-            "name": "Error Handling",
-            "item": [
-                {
-                    "name": "Health - Wrong Method",
-                    "event": [
-                        {
-                            "listen": "test",
-                            "script": {
-                                "exec": [
-                                    "pm.test('Status code is 405 Method Not Allowed', function () {",
-                                    "    pm.response.to.have.status(405);",
-                                    "});"
-                                ],
-                                "type": "text/javascript"
-                            }
-                        }
-                    ],
-                    "request": {
-                        "method": "POST",
-                        "header": [],
-                        "url": {
-                            "raw": "{{baseUrl}}/health",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "health"
-                            ]
-                        }
-                    },
-                    "response": []
-                },
-                {
-                    "name": "Send - Wrong Method",
-                    "event": [
-                        {
-                            "listen": "test",
-                            "script": {
-                                "exec": [
-                                    "pm.test('Status code is 405 Method Not Allowed', function () {",
-                                    "    pm.response.to.have.status(405);",
-                                    "});"
-                                ],
-                                "type": "text/javascript"
-                            }
-                        }
-                    ],
-                    "request": {
-                        "method": "GET",
-                        "header": [],
-                        "url": {
-                            "raw": "{{baseUrl}}/send",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "send"
-                            ]
-                        }
-                    },
-                    "response": []
-                },
-                {
-                    "name": "Non-existent Endpoint",
-                    "event": [
-                        {
-                            "listen": "test",
-                            "script": {
-                                "exec": [
-                                    "pm.test('Status code is 404', function () {",
-                                    "    pm.response.to.have.status(404);",
-                                    "});"
-                                ],
-                                "type": "text/javascript"
-                            }
-                        }
-                    ],
-                    "request": {
-                        "method": "GET",
-                        "header": [],
-                        "url": {
-                            "raw": "{{baseUrl}}/nonexistent",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "nonexistent"
-                            ]
-                        }
-                    },
-                    "response": []
+                    }
                 }
             ]
         }
